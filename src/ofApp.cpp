@@ -330,6 +330,11 @@ void ofApp::parseOsc(){
         if(m.getAddress() == "/heart"){
             updateBeat(m);
         }
+        // touch osc
+        else if(m.getAddress() == "/2/push1"){
+            float val = m.getArgAsFloat(0);
+            bStress = (val == 1.) ? true : false;
+        }
     }
 }
 
