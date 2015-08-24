@@ -9,11 +9,12 @@
 #define HOST_2 "localhost"
 #define HOST_3 "localhost"
 
-
 #define PORT_0 12350
 #define PORT_1 12341
 #define PORT_2 12342
 #define PORT_3 12343
+
+#define LOCAL true
 
 class ofApp : public ofBaseApp{
 
@@ -32,14 +33,21 @@ class ofApp : public ofBaseApp{
 		void dragEvent(ofDragInfo dragInfo);
 		void gotMessage(ofMessage msg);
     
+    void reset();
+    void idle();
+    void next();
+    void index();
+    void calculandoIndex();
+    void sendAll(ofxOscMessage m);
+    
     ofxJSONElement user;
     ofTrueTypeFont font;
     ofxFloatSlider indice;
     
-    ofxFloatSlider thermal_delta_y;
     ofxFloatSlider thermal_target_x;
     ofxFloatSlider thermal_target_y;
     ofxToggle bFake;
+    bool bSave;
     
     
     ofxFloatSlider heart_threshold;
@@ -58,6 +66,10 @@ class ofApp : public ofBaseApp{
     ofxOscSender sender_2;
     ofxOscSender sender_3;
     
+    ofxOscSender local_sender_1;
+    ofxOscSender local_sender_2;
+    ofxOscSender local_sender_3;
+    
     
     vector<int> beats;
     vector<int> fake_beats;
@@ -66,6 +78,16 @@ class ofApp : public ofBaseApp{
     int beatAvg;
     int beatN;
     float lastBeat;
+    int avg = 60;
     
+    void updateBeat(ofxOscMessage m);
+    void updateStress();
+    void updatePositions();
+    void saveData();
+    void parseOsc();
+    void saveFrames();
+
+    int initTime;
+    int runningTime;
     
 };
