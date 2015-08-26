@@ -5,9 +5,9 @@
 #include "ofxJSON.h"
 #include "ofxOsc.h"
 
-#define HOST_1 "localhost"
-#define HOST_2 "localhost"
-#define HOST_3 "localhost"
+#define HOST_1 "192.168.1.31"
+#define HOST_2 "192.168.1.31"
+#define HOST_3 "192.168.1.30"
 
 #define PORT_0 12350
 #define PORT_1 12341
@@ -87,8 +87,16 @@ class ofApp : public ofBaseApp{
     void saveData();
     void parseOsc();
     void saveFrames();
+    string computeIndice();
 
     int initTime;
     int runningTime;
+    
+    int temperature;
+    int conductance;
+    int galvanicVoltage;
+    
+    float avgFlow;
+    float avgThermal;
     
 };

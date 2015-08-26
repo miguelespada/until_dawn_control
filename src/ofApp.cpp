@@ -12,14 +12,14 @@ void ofApp::setup(){
     sender_2.setup(HOST_2, PORT_2);
     sender_3.setup(HOST_3, PORT_3);
     
-    local_sender_1.setup(HOST_1, PORT_1);
-    local_sender_2.setup(HOST_2, PORT_2);
-    local_sender_3.setup(HOST_3, PORT_3);
+    local_sender_1.setup("localhost", PORT_1);
+    local_sender_2.setup("localhost", PORT_2);
+    local_sender_3.setup("localhost", PORT_3);
     
     gui.setup();
     
     
-    gui.add(indice.setup( "indice", 0, 0, 100 ));
+    gui.add(indice.setup( "indice", 50, 0, 100 ));
     
     gui.add(thermal_target_x.setup( "thermal_target_x", 0.5, 0., 1. ));
     gui.add(thermal_target_y.setup( "thermal_target_y", 0.5, 0., 1. ));
@@ -44,6 +44,12 @@ void ofApp::setup(){
     while(!buffer.isLastLine())
         fake_beats.push_back(ofToInt(buffer. getNextLine()));
     
+    temperature = 0;
+    conductance = 0;
+    galvanicVoltage = 0;
+    
+    avgFlow = 0;
+    
 }
 
 //--------------------------------------------------------------
@@ -66,12 +72,21 @@ void ofApp::draw(){
     else
         ofClear(20);
     
+    if(user["active"].asBool())
+        ofSetColor(0, 255, 0);
+    else
+        ofSetColor(255, 0, 0);
+    ofEllipse(ofGetWidth() - 50, 50, 20, 20);
+    
+    ofSetColor(255);
+    
     ofPushMatrix();
     string msg = "Name: " + user["name"].asString() +
     " " +"isMale? [M/F]: " + ofToString(user["male"]) +
+    " " +"active? [a/A]: " + ofToString(user["active"]) +
     "Running time: " + ofToString(user["runningTime"]) +
     "Stress: " + ofToString(user["stress"][user["stress"].size() - 1].asInt()) +  " " +
-                "Indice: " + user["indice"].asString()  +
+    "Indice: " + user["indice"].asString()  + " -> " + computeIndice() +
     "\n" + "Last beat: " + ofToString(user["heartRate"][user["heartRate"].size() - 1].asInt());
     ofTranslate(10, 300);
     font.drawString(msg, 0, 0);
@@ -93,6 +108,23 @@ void ofApp::draw(){
     
     gui.draw();
     
+    ofPushMatrix();
+    ofTranslate(600, 0);
+    ofSetColor(255, 0, 0);
+    int M = user["flow"].size() ;
+    if(M > 100)
+        M = 100;
+    int last = user["flow"].size() - 1;
+    for(int i = 0; i < M; i ++){
+        float v0 = user["flow"][last - i].asFloat();
+        float v1 = user["flow"][last - i + 1].asFloat();
+        cout << v0 << endl;
+        ofLine(i, v0, i, v1);
+    }
+    ofPopMatrix();
+    
+    
+    
 }
 
 //--------------------------------------------------------------
@@ -105,6 +137,15 @@ void ofApp::keyPressed(int key){
         case 'F':
             user.open("http://192.168.1.42:3000/last.json?male=0");
             break;
+            
+        case 'A':
+            user.open("http://192.168.1.42:3000/active.json?v=0");
+            break;
+            
+        case 'a':
+            user.open("http://192.168.1.42:3000/active.json?v=1");
+            break;
+            
         case 'r':
             reset();
             break;
@@ -201,8 +242,8 @@ void ofApp::reset(){
     initTime = ofGetElapsedTimef();
     
     //
-    thermal_target_delta_x = 0;
-    thermal_target_delta_x = 0;
+    thermal_target_delta_x = 0.5;
+    thermal_target_delta_x = 0.5;
     
     //
     stress = 0;
@@ -251,11 +292,16 @@ void ofApp::sendAll(ofxOscMessage m){
 }
 
 void ofApp::updateBeat(ofxOscMessage m){
-    beats.push_back(m.getArgAsInt32(0));
+    beats.push_back(m.getArgAsInt32(3));
     
     if(!bFake){
-        sender_2.sendMessage(m);
-        local_sender_2.sendMessage(m);
+        ofxOscMessage real_m;
+        real_m.setAddress("/heart");
+        real_m.addIntArg(m.getArgAsInt32(3));
+        
+        sender_2.sendMessage(real_m);;
+        if(LOCAL)
+            local_sender_2.sendMessage(real_m);
     }
     else{
         ofxOscMessage fake_m;
@@ -282,7 +328,6 @@ void ofApp::updateBeat(ofxOscMessage m){
         }
         lastBeat = now;
     }
-
 }
 
 void ofApp::updateStress(){
@@ -305,6 +350,11 @@ void ofApp::saveData(){
         user.open("http://192.168.1.42:3000/updateControl.json?stress=" + ofToString(stress)
                   + "&indice=" + ofToString(int(indice))
                   + "&runningTime=" + ofToString(int(runningTime))
+                  + "&temperature=" + ofToString(temperature)
+                  + "&conductance=" + ofToString(conductance)
+                  + "&galvanicVoltage=" + ofToString(galvanicVoltage)
+                  + "&flow=" + ofToString(avgFlow)
+                  + "&thermal=" + ofToString(avgThermal)
                   );
     }
 }
@@ -316,7 +366,9 @@ void ofApp::updatePositions(){
         m.addFloatArg(thermal_target_x + thermal_target_delta_x);
         m.addFloatArg(thermal_target_y + thermal_target_delta_y);
         sender_3.sendMessage(m);
-        
+        if(LOCAL)
+            local_sender_3.sendMessage(m);
+            
         thermal_target_delta_x = ofMap( ofNoise(0., ofGetFrameNum() / 100.), 0., 1., -0.1, 0.1);
         thermal_target_delta_y = ofMap( ofNoise(1., ofGetFrameNum() / 100.), 0., 1., -0.1, 0.1);
         
@@ -327,9 +379,21 @@ void ofApp::parseOsc(){
     while(receiver.hasWaitingMessages()){
         ofxOscMessage m;
         receiver.getNextMessage(&m);
-        if(m.getAddress() == "/heart"){
+        if(m.getAddress() == "/data"){
             updateBeat(m);
+            temperature = m.getArgAsInt32(0);
+            conductance =  m.getArgAsInt32(1);
+            galvanicVoltage = m.getArgAsInt32(2);
+            
         }
+        if(m.getAddress() == "/flow"){
+            avgFlow = m.getArgAsFloat(0);
+        }
+        
+        if(m.getAddress() == "/thermal"){
+            avgThermal = m.getArgAsFloat(0);
+        }
+        
         // touch osc
         else if(m.getAddress() == "/2/push1"){
             float val = m.getArgAsFloat(0);
@@ -343,5 +407,19 @@ void ofApp::saveFrames(){
     m.setAddress("/save");
     m.addIntArg(int(bSave));
     sendAll(m);
+}
+
+string ofApp::computeIndice(){
+    if(user["indice"].asInt() > 90)
+        return "PANICO";
+    else if (user["indice"].asInt() > 70)
+        return "ESPANTO";
+    else if (user["indice"].asInt() > 50)
+        return "MIEDO";
+    else if (user["indice"].asInt() > 25)
+        return "INQUIETUD";
+    else
+        return "INDIFERENCIA";
+    
 }
 
