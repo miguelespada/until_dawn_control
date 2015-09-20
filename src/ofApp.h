@@ -9,10 +9,14 @@
 #define HOST_2 "192.168.1.31"
 #define HOST_3 "192.168.1.30"
 
+#define ARDUINO_HOST "localhost"
+
 #define PORT_0 12350
 #define PORT_1 12341
 #define PORT_2 12342
 #define PORT_3 12343
+
+#define ARDUINO_PORT 12351
 
 
 #define LOCAL true
@@ -40,6 +44,7 @@ class ofApp : public ofBaseApp{
     void index();
     void calculandoIndex();
     void sendAll(ofxOscMessage m);
+    void newUser();
     
     ofxJSONElement user;
     ofTrueTypeFont font;
@@ -47,6 +52,8 @@ class ofApp : public ofBaseApp{
     
     ofxFloatSlider thermal_target_x;
     ofxFloatSlider thermal_target_y;
+    ofxFloatSlider flow_threshold;
+    ofxFloatSlider heartBeat;
     ofxToggle bFake;
     bool bSave;
     
@@ -70,6 +77,8 @@ class ofApp : public ofBaseApp{
     ofxOscSender local_sender_1;
     ofxOscSender local_sender_2;
     ofxOscSender local_sender_3;
+    
+    ofxOscSender arduino_sender;
     
     
     vector<int> beats;
@@ -99,4 +108,9 @@ class ofApp : public ofBaseApp{
     float avgFlow;
     float avgThermal;
     
+    string arduino_input;
+    
+    void updateFlow();
+    
+    void drawUserStress();
 };

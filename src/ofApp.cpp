@@ -16,6 +16,8 @@ void ofApp::setup(){
     local_sender_2.setup("localhost", PORT_2);
     local_sender_3.setup("localhost", PORT_3);
     
+    arduino_sender.setup(ARDUINO_HOST, ARDUINO_PORT);
+    
     gui.setup();
     
     
@@ -24,6 +26,9 @@ void ofApp::setup(){
     gui.add(thermal_target_x.setup( "thermal_target_x", 0.5, 0., 1. ));
     gui.add(thermal_target_y.setup( "thermal_target_y", 0.5, 0., 1. ));
     gui.add(heart_threshold.setup( "heart_threshold", 400, 100, 600));
+    gui.add(flow_threshold.setup( "flow_threshold", 150, 0, 250));
+    
+    gui.add(heartBeat.setup( "heart beat", 70, 50, 100));
     gui.add(bFake.setup("fake heart", false));
     
     
@@ -50,6 +55,10 @@ void ofApp::setup(){
     
     avgFlow = 0;
     
+    arduino_input = "NOtHING";
+    
+    
+    
 }
 
 //--------------------------------------------------------------
@@ -58,11 +67,27 @@ void ofApp::update(){
     runningTime = ofGetElapsedTimef() - initTime;
     
     updatePositions();
+    updateFlow();
     updateStress();
     
     parseOsc();
     
     saveData();
+    
+    if(bFake){
+        ofxOscMessage fake_m;
+        fake_m.setAddress("/heart");
+        fake_m.addIntArg(fake_beats[fake_beats_index]);
+        sender_2.sendMessage(fake_m);
+        if(LOCAL)
+            local_sender_2.sendMessage(fake_m);
+        
+        fake_beats_index = (fake_beats_index + 1) % fake_beats.size();
+        
+        if(ofGetFrameNum() % 3 == 0)
+            user.open("http://192.168.1.42:3000/heartRate.json?v=" + ofToString(int(heartBeat)));
+    }
+
 }
 
 //--------------------------------------------------------------
@@ -87,11 +112,16 @@ void ofApp::draw(){
     "Running time: " + ofToString(user["runningTime"]) +
     "Stress: " + ofToString(user["stress"][user["stress"].size() - 1].asInt()) +  " " +
     "Indice: " + user["indice"].asString()  + " -> " + computeIndice() +
-    "\n" + "Last beat: " + ofToString(user["heartRate"][user["heartRate"].size() - 1].asInt());
+    "\n" + "Last beat: " + ofToString(user["heartRate"][user["heartRate"].size() - 1].asInt()) +
+    " " + "pump [4/5/6]";
     ofTranslate(10, 300);
     font.drawString(msg, 0, 0);
+    
     ofPopMatrix();
 
+    
+    font.drawString(arduino_input, 500, 20);
+    
     int x = ofGetFrameNum()  % ofGetWidth();
     ofLine(x, ofGetHeight(), x, ofGetHeight() - stress);
     
@@ -118,18 +148,19 @@ void ofApp::draw(){
     for(int i = 0; i < M; i ++){
         float v0 = user["flow"][last - i].asFloat();
         float v1 = user["flow"][last - i + 1].asFloat();
-        cout << v0 << endl;
         ofLine(i, v0, i, v1);
     }
     ofPopMatrix();
     
     
+    drawUserStress();
     
 }
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
     
+    ofxOscMessage m;
     switch (key) {
         case 'M':
             user.open("http://192.168.1.42:3000/last.json?male=1");
@@ -149,15 +180,39 @@ void ofApp::keyPressed(int key){
         case 'r':
             reset();
             break;
+      
         case 'i':
             idle();
             break;
+        
         case 'n':
             next();
             break;
             
+        case '4':
+            m.setAddress("/pump");
+            m.addIntArg(0);
+            arduino_sender.sendMessage(m);
+            break;
+            
+        case '5':
+            m.setAddress("/pump");
+            m.addIntArg(1);
+            arduino_sender.sendMessage(m);
+            break;
+            
+        case '6':
+            m.setAddress("/pump");
+            m.addIntArg(2);
+            arduino_sender.sendMessage(m);
+            break;
+            
         case '=':
             index();
+            break;
+            
+        case OF_KEY_RETURN:
+            newUser();
             break;
             
             
@@ -165,16 +220,16 @@ void ofApp::keyPressed(int key){
             calculandoIndex();
             break;
             
-            
         case '1':
             bStress = true;
             break;
+            
         case '2':
             bHStress = true;
             break;
             
             
-        case 'S':
+        case ' ':
             bSave = !bSave;
             saveFrames();
             break;
@@ -304,14 +359,6 @@ void ofApp::updateBeat(ofxOscMessage m){
             local_sender_2.sendMessage(real_m);
     }
     else{
-        ofxOscMessage fake_m;
-        fake_m.setAddress("/heart");
-        fake_m.addIntArg(fake_beats[fake_beats_index]);
-        sender_2.sendMessage(fake_m);
-        if(LOCAL)
-            local_sender_2.sendMessage(m);
-        
-        fake_beats_index = (fake_beats_index + 1) % fake_beats.size();
     }
     
     if(beats.size() > 400){
@@ -351,7 +398,7 @@ void ofApp::saveData(){
                   + "&indice=" + ofToString(int(indice))
                   + "&runningTime=" + ofToString(int(runningTime))
                   + "&temperature=" + ofToString(temperature)
-                  + "&conductance=" + ofToString(conductance)
+                  + "&conductance=" + ofToString(galvanicVoltage)
                   + "&galvanicVoltage=" + ofToString(galvanicVoltage)
                   + "&flow=" + ofToString(avgFlow)
                   + "&thermal=" + ofToString(avgThermal)
@@ -375,6 +422,17 @@ void ofApp::updatePositions(){
     }
 }
 
+void ofApp::updateFlow(){
+    if(ofGetFrameNum() % 3 == 0){
+        ofxOscMessage m;
+        m.setAddress("/flow");
+        m.addFloatArg(flow_threshold);
+        sender_3.sendMessage(m);
+        if(LOCAL)
+            local_sender_3.sendMessage(m);
+    }
+}
+
 void ofApp::parseOsc(){
     while(receiver.hasWaitingMessages()){
         ofxOscMessage m;
@@ -383,11 +441,16 @@ void ofApp::parseOsc(){
             updateBeat(m);
             temperature = m.getArgAsInt32(0);
             conductance =  m.getArgAsInt32(1);
-            galvanicVoltage = m.getArgAsInt32(2);
+            galvanicVoltage =  int( ofMap(m.getArgAsInt32(2), 45, 120, 0, 50));
+            arduino_input = ofToString(m.getArgAsInt32(3)) + " " + ofToString(conductance) + " " + ofToString(galvanicVoltage) + " " + ofToString(temperature);
             
         }
         if(m.getAddress() == "/flow"){
             avgFlow = m.getArgAsFloat(0);
+            
+            sender_2.sendMessage(m);;
+            if(LOCAL)
+                local_sender_2.sendMessage(m);
         }
         
         if(m.getAddress() == "/thermal"){
@@ -406,7 +469,10 @@ void ofApp::saveFrames(){
     ofxOscMessage m;
     m.setAddress("/save");
     m.addIntArg(int(bSave));
-    sendAll(m);
+    
+    sender_3.sendMessage(m);
+    if(LOCAL)
+        local_sender_3.sendMessage(m);
 }
 
 string ofApp::computeIndice(){
@@ -420,6 +486,25 @@ string ofApp::computeIndice(){
         return "INQUIETUD";
     else
         return "INDIFERENCIA";
+}
+
+void ofApp::newUser(){
+    user.open("http://192.168.1.42:3000/newUser.json");
+    reset();
+    indice = 0;
+    calculandoIndex();
     
 }
 
+void ofApp::drawUserStress(){
+    ofPushMatrix();
+    ofxJSONElement stress = user["stress"];
+    
+    ofTranslate(10, 280);
+    ofScale(800./1200, 1);
+    for(int i = 0; i < stress.size(); i++){
+        float v = stress[i].asFloat() / 2;
+        ofLine(i, 0, i, -v);
+    }
+    ofPopMatrix();
+}
