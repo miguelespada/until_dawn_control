@@ -113,4 +113,8 @@ class ofApp : public ofBaseApp{
     void updateFlow();
     
     void drawUserStress();
+    
+    bool bPumping = false;
+    bool bPumpHold = false;
+    float pumpingTime;
 };

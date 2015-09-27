@@ -55,7 +55,7 @@ void ofApp::setup(){
     
     avgFlow = 0;
     
-    arduino_input = "NOtHING";
+    arduino_input = "NOT CONNTECTED";
     
     
     
@@ -77,7 +77,10 @@ void ofApp::update(){
     if(bFake){
         ofxOscMessage fake_m;
         fake_m.setAddress("/heart");
-        fake_m.addIntArg(fake_beats[fake_beats_index]);
+        int value = fake_beats[fake_beats_index];
+        if(ofRandom(10) > 5)
+            value += ofRandom(-50, 50);
+        fake_m.addIntArg(value);
         sender_2.sendMessage(fake_m);
         if(LOCAL)
             local_sender_2.sendMessage(fake_m);
@@ -121,6 +124,21 @@ void ofApp::draw(){
 
     
     font.drawString(arduino_input, 500, 20);
+    
+    if(bPumping){
+        ofSetColor(255, 0, 0);
+        font.drawString("PUMP: " + ofToString(ofGetElapsedTimef() - pumpingTime), 500, 70);
+    }
+    
+    else if(bPumpHold){
+        ofSetColor(255, 255, 0);
+        font.drawString("PUMP: HOLD", 500, 70);
+    }
+    else {
+        ofSetColor(0, 255, 0);
+        font.drawString("PUMP: OPEN " + ofToString(int(ofGetElapsedTimef() - pumpingTime)), 500, 70);
+    }
+    ofSetColor(255);
     
     int x = ofGetFrameNum()  % ofGetWidth();
     ofLine(x, ofGetHeight(), x, ofGetHeight() - stress);
@@ -193,18 +211,26 @@ void ofApp::keyPressed(int key){
             m.setAddress("/pump");
             m.addIntArg(0);
             arduino_sender.sendMessage(m);
+            bPumpHold = false;
+            bPumping = true;
+            pumpingTime = ofGetElapsedTimef();
             break;
             
         case '5':
             m.setAddress("/pump");
             m.addIntArg(1);
             arduino_sender.sendMessage(m);
+            bPumpHold = true;
+            bPumping = false;
             break;
             
         case '6':
             m.setAddress("/pump");
             m.addIntArg(2);
             arduino_sender.sendMessage(m);
+            bPumpHold = false;
+            bPumping = false;
+            pumpingTime = ofGetElapsedTimef();
             break;
             
         case '=':
@@ -440,9 +466,9 @@ void ofApp::parseOsc(){
         if(m.getAddress() == "/data"){
             updateBeat(m);
             temperature = m.getArgAsInt32(0);
-            conductance =  m.getArgAsInt32(1);
-            galvanicVoltage =  int( ofMap(m.getArgAsInt32(2), 45, 120, 0, 50));
-            arduino_input = ofToString(m.getArgAsInt32(3)) + " " + ofToString(conductance) + " " + ofToString(galvanicVoltage) + " " + ofToString(temperature);
+            conductance =  ofMap(m.getArgAsInt32(1), 0, 5500, 0, 100, true);
+            galvanicVoltage =  ofMap(m.getArgAsInt32(2), 50, 330, 0, 100, true);
+            arduino_input = "C: " + ofToString(conductance) + "\nV: " + ofToString(galvanicVoltage) + "\nT: " + ofToString(temperature / 100.);
             
         }
         if(m.getAddress() == "/flow"){
