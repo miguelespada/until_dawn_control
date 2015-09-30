@@ -26,10 +26,9 @@ void ofApp::setup(){
     gui.add(thermal_target_x.setup( "thermal_target_x", 0.5, 0., 1. ));
     gui.add(thermal_target_y.setup( "thermal_target_y", 0.5, 0., 1. ));
     gui.add(heart_threshold.setup( "heart_threshold", 400, 100, 600));
-    gui.add(flow_threshold.setup( "flow_threshold", 150, 0, 250));
     
-    gui.add(heartBeat.setup( "heart beat", 70, 50, 100));
     gui.add(bFake.setup("fake heart", false));
+    gui.add(heartBeat.setup( "fake heart beat", 70, 50, 100));
     
     
     //
@@ -55,7 +54,7 @@ void ofApp::setup(){
     
     avgFlow = 0;
     
-    arduino_input = "NOT CONNTECTED";
+    arduino_input = "ARD. NOT CONNTECTED";
     
     
     
@@ -110,16 +109,15 @@ void ofApp::draw(){
     
     ofPushMatrix();
     string msg = "Name: " + user["name"].asString() +
-    " " +"isMale? [M/F]: " + ofToString(user["male"]) +
-    " " +"active? [a/A]: " + ofToString(user["active"]) +
-    "Running time: " + ofToString(user["runningTime"]) +
-    "Stress: " + ofToString(user["stress"][user["stress"].size() - 1].asInt()) +  " " +
-    "Indice: " + user["indice"].asString()  + " -> " + computeIndice() +
+    "\n" + "Running time: " + ofToString(user["runningTime"]) +
+    "" + "isMale? [M/F]: " + ofToString(user["male"]) +
+    "" +"active? [a/A]: " + ofToString(user["active"]) +
+    "Stress: " + ofToString(user["stress"][user["stress"].size() - 1].asInt()) +  "\n" +
+    "Indice: " + user["indice"].asString()  + " (" + computeIndice() + ")" +
     "\n" + "Last beat: " + ofToString(user["heartRate"][user["heartRate"].size() - 1].asInt()) +
-    " " + "pump [4/5/6]";
-    ofTranslate(10, 300);
+    "\n" + "pump [4/5/6]";
+    ofTranslate(10, 250);
     font.drawString(msg, 0, 0);
-    
     ofPopMatrix();
 
     
@@ -140,8 +138,6 @@ void ofApp::draw(){
     }
     ofSetColor(255);
     
-    int x = ofGetFrameNum()  % ofGetWidth();
-    ofLine(x, ofGetHeight(), x, ofGetHeight() - stress);
     
     ofPushMatrix();
     ofTranslate(0, -200);
@@ -156,23 +152,13 @@ void ofApp::draw(){
     
     gui.draw();
     
-    ofPushMatrix();
-    ofTranslate(600, 0);
-    ofSetColor(255, 0, 0);
-    int M = user["flow"].size() ;
-    if(M > 100)
-        M = 100;
-    int last = user["flow"].size() - 1;
-    for(int i = 0; i < M; i ++){
-        float v0 = user["flow"][last - i].asFloat();
-        float v1 = user["flow"][last - i + 1].asFloat();
-        ofLine(i, v0, i, v1);
-    }
-    ofPopMatrix();
-    
     
     drawUserStress();
     
+    
+    ofSetColor(255, 0, 255);
+    int x = ofGetFrameNum()  % ofGetWidth();
+    ofLine(x, ofGetHeight(), x, ofGetHeight() - stress);
 }
 
 //--------------------------------------------------------------
@@ -524,12 +510,13 @@ void ofApp::newUser(){
 void ofApp::drawUserStress(){
     ofPushMatrix();
     ofxJSONElement stress = user["stress"];
-    
-    ofTranslate(10, 280);
+    ofSetColor(255, 0, 0);
+    ofTranslate(00, 400);
     ofScale(800./1200, 1);
     for(int i = 0; i < stress.size(); i++){
         float v = stress[i].asFloat() / 2;
         ofLine(i, 0, i, -v);
     }
+    ofSetColor(255);
     ofPopMatrix();
 }
