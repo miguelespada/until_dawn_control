@@ -190,7 +190,6 @@ void ofApp::keyPressed(int key){
         case 'A':
             user.open("http://192.168.1.42:3000/active.json?v=0");
             break;
-            
         case 'a':
             user.open("http://192.168.1.42:3000/active.json?v=1");
             break;
@@ -253,12 +252,12 @@ void ofApp::keyPressed(int key){
         case '2':
             bHStress = true;
             break;
+
             
-            
-        case ' ':
-            bSave = !bSave;
-            saveFrames();
-            break;
+//        case ' ':
+//            bSave = !bSave;
+//            saveFrames();
+//            break;
 
         default:
             break;
